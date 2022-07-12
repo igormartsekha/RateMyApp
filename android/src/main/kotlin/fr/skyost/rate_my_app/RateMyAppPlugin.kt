@@ -25,10 +25,12 @@ import io.flutter.plugin.common.PluginRegistry.Registrar
  */
 public class RateMyAppPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     companion object {
+        lateinit var registrar:Registrar
         @JvmStatic
         fun registerWith(registrar: Registrar) {
             val channel = MethodChannel(registrar.messenger(), "rate_my_app")
             channel.setMethodCallHandler(RateMyAppPlugin())
+            this.registrar = registrar
         }
     }
 
@@ -86,12 +88,26 @@ public class RateMyAppPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
      * @param result The method channel result object.
      */
 
+    private fun getContext():Context? {
+        if(context == null && registrar != null) {
+            return registrar.context();
+        }
+        return null;
+    }
+
+    private fun getActivity():Activity? {
+        if(activity == null && registrar != null) {
+            return registrar.activity();
+        }
+        return null;
+    }
+
     private fun cacheReviewInfo(result: Result) {
-        if (context == null) {
+        if (getContext() == null) {
             result.error("context_is_null", "Android context not available.", null)
             return
         }
-        val manager = ReviewManagerFactory.create(context!!)
+        val manager = ReviewManagerFactory.create(getContext()!!)
         val request = manager.requestReviewFlow()
         request.addOnCompleteListener { task ->
             if (task.isSuccessful) {
@@ -110,14 +126,14 @@ public class RateMyAppPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
      */
 
     private fun requestReview(result: Result) {
-        if (context == null) {
+        if (getContext() == null) {
             result.error("context_is_null", "Android context not available.", null)
             return
         }
-        if (activity == null) {
+        if (getActivity() == null) {
             result.error("activity_is_null", "Android activity not available.", null)
         }
-        val manager = ReviewManagerFactory.create(context!!)
+        val manager = ReviewManagerFactory.create(getContext()!!)
         if (reviewInfo != null) {
             launchReviewFlow(result, manager, reviewInfo!!)
             return
@@ -141,7 +157,7 @@ public class RateMyAppPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
      */
 
     private fun launchReviewFlow(result: Result, manager: ReviewManager, reviewInfo: ReviewInfo) {
-        val flow = manager.launchReviewFlow(activity!!, reviewInfo)
+        val flow = manager.launchReviewFlow(getActivity()!!, reviewInfo)
         flow.addOnCompleteListener { task ->
             run {
                 this.reviewInfo = null
@@ -158,7 +174,7 @@ public class RateMyAppPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private fun isPlayStoreInstalled(): Boolean {
         return try {
-            activity!!.packageManager.getPackageInfo("com.android.vending", 0)
+            getActivity()!!.packageManager.getPackageInfo("com.android.vending", 0)
             true
         } catch (ex: PackageManager.NameNotFoundException) {
             false
@@ -174,21 +190,21 @@ public class RateMyAppPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
      */
 
     private fun goToPlayStore(applicationId: String?): Int {
-        if (context == null) {
+        if (getActivity() == null) {
             return 2
         }
 
-        val id: String = applicationId ?: context!!.applicationContext.packageName
+        val id: String = applicationId ?: getActivity()!!.applicationContext.packageName
 
         val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$id"))
-        if (marketIntent.resolveActivity(context!!.packageManager) != null) {
-            context!!.startActivity(marketIntent)
+        if (marketIntent.resolveActivity(getActivity()!!.packageManager) != null) {
+            getActivity()!!.startActivity(marketIntent)
             return 0
         }
 
         val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$id"))
-        if (browserIntent.resolveActivity(context!!.packageManager) != null) {
-            context!!.startActivity(browserIntent)
+        if (browserIntent.resolveActivity(getActivity()!!.packageManager) != null) {
+            getActivity()!!.startActivity(browserIntent)
             return 1
         }
 
